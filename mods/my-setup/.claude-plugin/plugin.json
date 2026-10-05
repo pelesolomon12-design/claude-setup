@@ -1,0 +1,9 @@
+{
+  "name": "my-setup",
+  "version": "0.1.0",
+  "description": "Hebrew/RTL replies, remaining-usage meter, a 'later' list, a review-until-clean loop, skill suggestions, and doing tasks itself instead of handing them off",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "pelesolomon12-design"
+  }
+}
