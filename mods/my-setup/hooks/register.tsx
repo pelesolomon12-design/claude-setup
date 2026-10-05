@@ -5,6 +5,7 @@ import type { LaterItem } from '../types'
 
 const STORE_KEY = 'later'
 const later = atom({ plugin: 'my-setup', key: 'later' } as const, [])
+const meter = atom({ plugin: 'my-setup', key: 'meter' } as const, '')
 
 const LATER_ADD = 'mcp__my-setup__later_add'
 const LATER_DONE = 'mcp__my-setup__later_done'
@@ -96,6 +97,11 @@ function meterText(context: SessionContextUsage, rateLimits: readonly SessionRat
   return parts.length === 0 ? undefined : `נשאר: ${parts.join(' · ')}`
 }
 
+async function showMeter($: EngineInterface, text: string | undefined) {
+  $.ui.status(text)
+  await update($, meter, () => text ?? '')
+}
+
 async function save($: EngineInterface, fn: (list: LaterItem[]) => LaterItem[]) {
   await update($, later, fn)
   await $.store.set(STORE_KEY, await read($, later))
@@ -111,7 +117,7 @@ export const register: Register = on => {
     await update($, later, () => stored ?? [])
 
     const usage = await $.session.usage()
-    $.ui.status(meterText(usage.context, usage.rateLimits, await $.clock.now()))
+    await showMeter($, meterText(usage.context, usage.rateLimits, await $.clock.now()))
 
     await $.tool.register({
       name: 'later_add',
@@ -148,7 +154,7 @@ export const register: Register = on => {
   })
 
   on('session.measure', async ($, e, next) => {
-    $.ui.status(meterText(e.context, e.rateLimits, await $.clock.now()))
+    await showMeter($, meterText(e.context, e.rateLimits, await $.clock.now()))
     return next(e)
   })
 
@@ -182,12 +188,14 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const list = await read($, later)
-    if (e.props.hasSurvey || list.length === 0) return next(e)
+    const usage = await read($, meter)
+    if (e.props.hasSurvey || (list.length === 0 && usage === '')) return next(e)
 
     const { Box, Text } = $.ui.resolve(e)
     return (
       <Box flexDirection="column">
-        <Text bold>📌 לאח״כ ({list.length}):</Text>
+        {usage !== '' && <Text>{usage}</Text>}
+        {list.length > 0 && <Text bold>📌 לאח״כ ({list.length}):</Text>}
         {list.map((item, i) => (
           <Text dimColor>
             {i + 1}. {item.text}
