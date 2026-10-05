@@ -158,6 +158,18 @@ export const register: Register = on => {
     return next(e)
   })
 
+  on('turn.complete', async ($, e, next) => {
+    const done = await next(e)
+    if (e.agentId === undefined) {
+      const usage = await $.session.usage()
+      const text = meterText(usage.context, usage.rateLimits, await $.clock.now())
+      if (text !== undefined) {
+        await $.session.append({ message: { type: 'system', content: [{ type: 'text', text }] } })
+      }
+    }
+    return done
+  })
+
   on('prompt.compose', async ($, e, next) => {
     const composed = await next(e)
     return {
