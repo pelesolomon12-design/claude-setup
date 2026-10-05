@@ -26,6 +26,9 @@ const INSTRUCTIONS = `# הגדרות אישיות של המשתמש (my-setup)
 - על שאלה ענה רק על מה שנשאל, לעניין. אל תוסיף מידע, הצעות או הסברים שלא התבקשו.
 - פרט יותר רק אם המשתמש ביקש, או אם בלי זה התשובה תהיה שגויה או מסוכנת.
 
+## שורת המונה
+- שורת "נשאר: ..." בסוף התשובות שלך נוספת אוטומטית על ידי המוד. אל תכתוב אותה בעצמך, ואל תסתמך על המספרים הישנים שבה.
+
 ## שפה וכיווניות (RTL)
 - ענה תמיד בעברית.
 - כדי שהטקסט יוצג מימין לשמאל: פתח כל פסקה, כותרת ושורת רשימה במילה בעברית, לעולם לא במילה באנגלית, מספר, נתיב או קוד.
@@ -158,16 +161,19 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('turn.complete', async ($, e, next) => {
-    const done = await next(e)
-    if (e.agentId === undefined) {
-      const usage = await $.session.usage()
-      const text = meterText(usage.context, usage.rateLimits, await $.clock.now())
-      if (text !== undefined) {
-        await $.session.append({ message: { type: 'system', content: [{ type: 'text', text }] } })
+  // The browser shows neither the status line nor the band: end each final
+  // answer of the main loop with the meter, as part of the reply's own text.
+  on('turn.step', async function* ($, e, next) {
+    let lastText: number | undefined
+    for await (const chunk of next(e)) {
+      if (chunk.kind === 'text') lastText = chunk.index
+      if (chunk.kind === 'stop' && chunk.stopReason === 'end_turn' && e.agentId === undefined && lastText !== undefined) {
+        const usage = await $.session.usage()
+        const text = meterText(usage.context, usage.rateLimits, await $.clock.now())
+        if (text !== undefined) yield { kind: 'text', index: lastText, text: `\n\n---\n${text}` }
       }
+      yield chunk
     }
-    return done
   })
 
   on('prompt.compose', async ($, e, next) => {
